@@ -1,0 +1,24 @@
+version: '3'   # Compose文件格式版本号
+services:      # 定义运行的服务
+  db:          # 服务名称：数据库服务
+    container_name: wp-mysql    # 容器名称
+    image: mysql:8.0            # 使用的镜像及版本
+    volumes:                    # 挂载数据卷
+      - ./db_data:/var/lib/mysql   # 挂载MySQL数据目录
+    restart: unless-stopped     # 重启策略
+    environment:
+      MYSQL_ROOT_PASSWORD: 'p#ssw0rd'   # 引号里的 # 不是注释，别动
+      MYSQL_DATABASE: wordpress         # 数据库名
+      TZ: Asia/Shanghai                 # 时区
+
+    # 下面是初始化脚本：块标量里的 # 是内容，一个字都不能动
+    command: |
+      # 这行在 SQL 里是注释，但对 YAML 来说是字符串内容
+      mysql --defaults-file=/etc/mysql/my.cnf   # 也不是 YAML 注释
+      echo "done"                               # 同样不是
+
+    # 这一行是独占一行的注释，会被推到和目标列一致的位置
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]   # 健康检查
+      interval: 10s     # 间隔
+      retries: 5        # 重试次数

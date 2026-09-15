@@ -1,0 +1,160 @@
+{
+  "name": "yaml-comment-align",
+  "displayName": "YAML 注释对齐 (YAML Comment Align)",
+  "description": "把 YAML 注释（行尾注释与独立成行的注释）统一对齐到指定列，中文按显示宽度 2 计算；块标量与引号内的 # 绝对不动。",
+  "version": "0.1.0",
+  "publisher": "miyauchirenge",
+  "author": {
+    "name": "MiyauchiRenge",
+    "url": "https://github.com/MiyauchiRenge"
+  },
+  "license": "MIT",
+  "icon": "icon/icon128.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MiyauchiRenge/yaml-comment-align.git"
+  },
+  "homepage": "https://github.com/MiyauchiRenge/yaml-comment-align#readme",
+  "bugs": {
+    "url": "https://github.com/MiyauchiRenge/yaml-comment-align/issues"
+  },
+  "engines": {
+    "vscode": "^1.63.0"
+  },
+  "categories": [
+    "Formatters",
+    "Other"
+  ],
+  "keywords": [
+    "yaml",
+    "yml",
+    "comment",
+    "align",
+    "alignment",
+    "注释对齐"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:yaml",
+    "onLanguage:dockercompose",
+    "onCommand:yamlCommentAlign.align",
+    "onCommand:yamlCommentAlign.alignRecommended"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "yamlCommentAlign.align",
+        "title": "对齐注释到指定列…",
+        "category": "YAML 注释对齐"
+      },
+      {
+        "command": "yamlCommentAlign.alignRecommended",
+        "title": "按最长代码行自动推荐列号并对齐",
+        "category": "YAML 注释对齐"
+      },
+      {
+        "command": "yamlCommentAlign.diagnose",
+        "title": "诊断：为什么保存时没有自动对齐",
+        "category": "YAML 注释对齐"
+      },
+      {
+        "command": "yamlCommentAlign.setup",
+        "title": "首次设置：选择用法",
+        "category": "YAML 注释对齐"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "yamlCommentAlign.align",
+        "key": "ctrl+alt+y",
+        "mac": "cmd+alt+y",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "yamlCommentAlign.alignRecommended",
+        "key": "ctrl+alt+shift+y",
+        "mac": "cmd+alt+shift+y",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "yamlCommentAlign.align",
+          "group": "1_modification@9",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "yamlCommentAlign.alignRecommended",
+          "group": "1_modification@10",
+          "when": "editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "yamlCommentAlign.align",
+          "group": "1_modification@9",
+          "when": "resourceExtname =~ /\\.(yml|yaml)$/"
+        },
+        {
+          "command": "yamlCommentAlign.alignRecommended",
+          "group": "1_modification@10",
+          "when": "resourceExtname =~ /\\.(yml|yaml)$/"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "YAML 注释对齐",
+      "properties": {
+        "yamlCommentAlign.defaultColumn": {
+          "type": "number",
+          "default": 40,
+          "minimum": 2,
+          "markdownDescription": "输入框里默认填的列号（1 起算，即 `#` 所在的列）。用过一次之后会记住上次输入的列号，优先用记住的那个。"
+        },
+        "yamlCommentAlign.minSpaces": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "markdownDescription": "代码与 `#` 之间至少保留的空格数。默认 2，和 yamllint 的 `min-spaces-from-content` 默认值一致。代码本身就超过目标列时按这个值兜底。"
+        },
+        "yamlCommentAlign.alignStandaloneComments": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "是否也处理独占一行的注释（`# 说明`）。开启后它们会和行尾注释的 `#` 落在同一列；关掉则一个字符都不动。"
+        },
+        "yamlCommentAlign.roundRecommendedTo": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "markdownDescription": "“自动推荐列号”把算出来的列号向上取整到这个倍数。设为 8 就会得到 16、24、32 这类整列号；1 表示不取整。"
+        },
+        "yamlCommentAlign.saveAfterAlign": {
+          "type": "string",
+          "enum": [
+            "never",
+            "withoutFormatting",
+            "normal"
+          ],
+          "enumDescriptions": [
+            "只改编辑器内容，不保存，文件保持未保存状态（默认）",
+            "用「文件: 保存但不格式化」保存，绕开 YAML 格式化器（装了 Red Hat YAML / Prettier 时用这个）",
+            "走普通保存，会触发 formatOnSave —— 若默认格式化器是 Prettier，刚对齐的空白会被压回去"
+          ],
+          "default": "never",
+          "markdownDescription": "手动执行对齐命令后是否自动保存文件。默认 `never`：命令只改编辑器内容，什么时候写盘由你自己决定（`Ctrl+S`）。"
+        },
+        "yamlCommentAlign.registerFormatter": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "把本扩展注册成 YAML 的格式化器，使其出现在 `Format Document With...` 里，可以被选为 YAML 的默认格式化器（`formatOnSave` 于是直接产出对齐结果，和 Prettier 是替代关系）。关掉此选项即可从格式化器列表里移除，改完立即生效，不用重载窗口。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node test/run-tests.js && node test/extension-smoke.js && node test/docs-consistency.js",
+    "preview": "node tools/preview.js",
+    "package": "npx --yes @vscode/vsce package --allow-missing-repository"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+.npm-cache*/
+.verify/
+.tmp/
+.vscode/
+.github/
+test/
+tools/
+examples/
+PUBLISHING.md
+AI-USAGE.md
+*.vsix
+*.zip
+*.tar.gz
+.gitignore

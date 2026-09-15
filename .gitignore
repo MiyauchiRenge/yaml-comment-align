@@ -1,0 +1,20 @@
+# 依赖
+node_modules/
+
+# 构建产物（VSIX 请作为 Release 附件分发，不要提交）
+*.vsix
+
+# 本地临时目录
+.npm-cache*/
+.verify/
+.tmp/
+
+# 打包给用户下载的归档
+*.zip
+*.tar.gz
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

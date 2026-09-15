@@ -1,0 +1,122 @@
+name: Publish Extension
+
+# 打 v* 标签时自动发布；也可以在 Actions 页面手动触发（手动触发前记得先把版本号改好）。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 先跑测试 + 校验标签和 package.json 的版本号是否一致。
+  # 版本不一致是 vsce 发布最常见的失败原因（重复版本号会被拒绝），提前挡住。
+  verify:
+    name: 测试与版本校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 本项目零依赖，不需要 npm install
+      - name: 跑测试
+        run: npm test
+
+      - name: 校验标签与 package.json 版本一致
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "package.json: $PKG_VERSION"
+          echo "tag         : $TAG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 package.json 的版本 $PKG_VERSION 不一致。"
+            echo "::error::请先把 package.json 的 version 改成 $TAG_VERSION 再重新打标签。"
+            exit 1
+          fi
+
+  publish-marketplace:
+    name: 发布到 VS Code Marketplace
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # OIDC 信任发布需要（无 PAT 时使用）
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 两种认证方式二选一，自动判断：
+      #   - 配了 VSCE_PAT        -> 传统 PAT 方式（2026-12-01 之后全局 PAT 退役，会失效）
+      #   - 没配 VSCE_PAT        -> OIDC 信任发布（需在 Marketplace 上为仓库+workflow 配置信任策略）
+      # vsce 的 --oidc 失败时不会回退到 PAT，所以这里显式分流，避免报错看不懂。
+      - name: vsce publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -n "$VSCE_PAT" ]; then
+            echo "::notice::使用 VSCE_PAT 认证（PAT 方式，2026-12-01 之后全局 PAT 退役）"
+            npx --yes @vscode/vsce publish
+          else
+            echo "::notice::未配置 VSCE_PAT，改用 OIDC 信任发布"
+            echo "若失败：请先在 Marketplace 的 publisher 管理页为 ${{ github.repository }} 配置信任发布策略。"
+            npx --yes @vscode/vsce publish --oidc
+          fi
+
+  # 把打包好的 VSIX 附到 GitHub Release 上，供离线安装和固定版本使用。
+  # 仓库的 .gitignore 排除了 *.vsix，所以二进制不入库，Release 是唯一的分发渠道。
+  attach-release:
+    name: 附上 VSIX 到 GitHub Release
+    needs: publish-marketplace
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 打包
+        run: npx --yes @vscode/vsce package
+
+      - name: 创建 Release 并上传 VSIX
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" ./*.vsix --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" ./*.vsix \
+              --title "${GITHUB_REF_NAME}" --generate-notes
+          fi
+
+  # 可选：同时发布到 Open VSX（VSCodium / Cursor / Gitpod 用的注册表）。
+  # 需要先在仓库 Settings → Variables 里加一个变量 PUBLISH_OPEN_VSX=true，
+  # 并在 Secrets 里加 OVSX_PAT（在 https://open-vsx.org/user-settings/tokens 生成）。
+  publish-open-vsx:
+    name: 发布到 Open VSX（可选）
+    needs: verify
+    if: ${{ vars.PUBLISH_OPEN_VSX == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: ovsx publish
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx publish -p "$OVSX_PAT"
